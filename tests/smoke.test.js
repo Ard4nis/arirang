@@ -70,7 +70,7 @@ test('Firefox with no installed voice cannot start listening quiz',async()=>{
  assert.doesNotMatch(app.html(),/🎧 Lyttequiz ·/);
 });
 test('One-step and three-step proposals work for every kup and the grade-only filter',async()=>{
- const app=startApp();
+ const app=startApp();app.navigate('generator');
  for(const kup of [9,8,7,6,5,4,3,2,1]){
   app.me().kup=kup;
   for(const scope of ['grade','upto']){
@@ -87,7 +87,7 @@ test('One-step and three-step proposals work for every kup and the grade-only fi
  }
 });
 test('6. kup includes required kick and takedown categories',async()=>{
- const app=startApp();app.me().kup=6;
+ const app=startApp();app.me().kup=6;app.navigate('generator');
  for(const [kind,total,kicks,takedowns] of [['oneStep',10,5,3],['threeStep',8,4,2]]){
   await app.change({toolGenKind:kind},kind);
   await app.change({toolFull:''},null,{checked:true});
