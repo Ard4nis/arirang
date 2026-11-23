@@ -7,7 +7,7 @@ const root=path.resolve(__dirname,'..');
 const source=name=>fs.readFileSync(path.join(root,name),'utf8');
 const index=source('index.html');
 const main=(index.match(/<script>([\s\S]*?)<\/script>/)||[])[1];
-const libraries=['video-catalog.js','voice-picker.js','tts-reliability.js','data-guard.js','progress-tools.js','training-tools.js','daily-training.js'];
+const libraries=['video-catalog.js','voice-picker.js','tts-reliability.js','data-guard.js','progress-tools.js','training-tools.js','daily-training.js','readiness.js'];
 function startApp(voiceList=[
  {name:'Dansk',voiceURI:'da1',lang:'da-DK',default:true},
  {name:'Korean',voiceURI:'ko1',lang:'ko-KR',default:false}
@@ -48,7 +48,7 @@ test('All project scripts parse and the app loads',()=>{
  for(const f of libraries)assert.doesNotThrow(()=>new Function(source(f)),f);
  assert.doesNotThrow(()=>new Function(main));
  const app=startApp();
- for(const page of ['home','daily','practice','library','combinations','generator','quiz','videos','profiles']){
+ for(const page of ['home','daily','practice','library','combinations','generator','quiz','videos','readiness','profiles']){
   app.navigate(page);assert.ok(app.html().length>100,'empty view: '+page);
  }
 });
