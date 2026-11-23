@@ -38,6 +38,24 @@ function status(item,index){
  const score=state().combinationProgress[combo.id];
  return validLevels.has(score)?score:(combo.reviewed?'reviewed':'todo');
 }
+function comboStatus(comboId){
+ const p=state(),combo=p.savedCombinations.find(c=>c.id===comboId);
+ if(!combo)return 'todo';
+ return validLevels.has(p.combinationProgress[comboId])?p.combinationProgress[comboId]:(combo.reviewed?'reviewed':'todo');
+}
+function renderComboStatus(comboId){
+ const score=comboStatus(comboId);
+ return '<label class="linked-field">Træningsstatus på den gemte kombination<select data-combo-global-progress="'+safe(comboId)+'" aria-label="Status for gemt kombination">'+
+ levels.map(([id,label])=>'<option value="'+id+'" '+(id===score?'selected':'')+'>'+label+'</option>').join('')+'</select></label>';
+}
+function setComboStatus(comboId,score){
+ if(!validLevels.has(score))return false;
+ const p=state(),combo=p.savedCombinations.find(c=>c.id===comboId);
+ if(!combo||!['one','three'].includes(combo.kind))return false;
+ p.combinationProgress[comboId]=score;
+ combo.reviewed=score==='reviewed';
+ save();return true;
+}
 function countAssigned(item){
  return Array.from({length:item.count||1},(_,i)=>linked(item,i)).filter(Boolean).length;
 }
@@ -131,7 +149,7 @@ function onDelete(comboId){
  delete p.combinationProgress[comboId];
  save();
 }
-window.arirangCombinationLinks={linked,status,countAssigned,renderPractice,assign,assignFirst,describe,onDelete,trainerReview};
+window.arirangCombinationLinks={linked,status,countAssigned,renderPractice,renderComboStatus,comboStatus,setComboStatus,assign,assignFirst,describe,onDelete,trainerReview};
 const style=document.createElement('style');
 style.textContent='.linked-progress{margin:12px 0}.linked-progress-body{padding:12px 0}.linked-slot{padding:12px;margin:9px 0;border:1px solid #dce6f4;border-radius:11px;background:#f9fbff}.linked-slot-head{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-bottom:9px}.linked-field{display:flex;flex-direction:column;gap:5px;margin:9px 0;font-size:13px;font-weight:700}.linked-field select{border:1px solid #b9cae2;border-radius:9px;padding:10px;background:#fff;color:#192941;width:100%;max-width:500px}.linked-slot .btn{margin-top:4px}.linked-overview-note{margin:7px 0;font-size:13px;color:#52667d}';
 document.head.append(style);
@@ -144,6 +162,9 @@ document.addEventListener('change',event=>{
  }
  if(d.linkedProgress!==undefined){
   if(updateLinkedProgress(d.linkedProgress,event.target.value))render();
+ }
+ if(d.comboGlobalProgress!==undefined){
+  if(setComboStatus(d.comboGlobalProgress,event.target.value))render();
  }
 });
 document.addEventListener('click',event=>{
