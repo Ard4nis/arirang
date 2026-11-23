@@ -6,7 +6,7 @@ function countPractice(item){
  let practised=0,confident=0,trainer=0;
  for(let i=0;i<n;i++){
   const key=item.id+':'+i;
-  const status=p.practiceProgress?.[key]||(p.checks?.[key]?'practised':'todo');
+  const status=(item.type==='oneStep'||item.type==='threeStep')&&window.arirangCombinationLinks?window.arirangCombinationLinks.status(item,i):(p.practiceProgress?.[key]||(p.checks?.[key]?'practised':'todo'));
   if(status!=='todo')practised++;
   if(status==='confident'||status==='reviewed')confident++;
   if(status==='reviewed')trainer++;
@@ -36,7 +36,7 @@ function readinessPage(){
   const pct=Math.round(100*s.completed/s.total);
   return '<div class="readiness-item"><div class="rowbetween"><strong>'+s.label+'</strong><span>'+s.completed+' / '+s.total+'</span></div><div class="progress"><span style="width:'+pct+'%"></span></div></div>';
  };
- const practical=p=>'<div class="readiness-item"><strong>'+p.label+'</strong><p class="small muted">'+cleanText(p.description)+'</p><div class="readiness-counts"><span>Øvet: <b>'+p.stats.practised+'/'+p.stats.total+'</b></span><span>Kan selv: <b>'+p.stats.confident+'/'+p.stats.total+'</b></span><span>Gennemgået med træner: <b>'+p.stats.trainer+'/'+p.stats.total+'</b></span></div></div>';
+ const practical=p=>'<div class="readiness-item"><strong>'+p.label+'</strong><p class="small muted">'+cleanText(p.description)+'</p><div class="readiness-counts"><span>Øvet: <b>'+p.stats.practised+'/'+p.stats.total+'</b></span><span>Kan selv: <b>'+p.stats.confident+'/'+p.stats.total+'</b></span><span>Gennemgået med træner: <b>'+p.stats.trainer+'/'+p.stats.total+'</b></span></div>'+((p.type==='oneStep'||p.type==='threeStep')&&window.arirangCombinationLinks?'<p class="linked-overview-note">Navngivne kombinationer: '+window.arirangCombinationLinks.countAssigned(p.items[0])+'/'+p.stats.total+'</p>'+window.arirangCombinationLinks.renderPractice(p.items[0]):'')+'</div>';
  const total=stats.sections.reduce((a,x)=>a+x.total,0),done=stats.sections.reduce((a,x)=>a+x.completed,0);
  return '<section class="section-head"><h2>🎯 Min gradueringsoversigt</h2><p class="lead">Status på pensummet for '+gradeLabel(grade)+', baseret på dine egne markeringer.</p></section>'+
  '<div class="panel"><h3>Teknikker, former og teori</h3><div class="metric">'+done+' / '+total+'</div><p class="muted">Punkter markeret som behersket eller lært</p>'+stats.sections.map(card).join('')+'</div>'+
