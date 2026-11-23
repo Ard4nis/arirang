@@ -41,6 +41,23 @@ function sanitizeProfile(p,{strict=false}={}){
  const validStates=[0,1,2];
  const rawCombos=Array.isArray(p.savedCombinations)?p.savedCombinations.slice(0,150):[];
  const combos=rawCombos.map(sanitizeCombination).filter(Boolean);
+ const comboById=new Map(combos.map(c=>[c.id,c]));
+ const validProgressStates=['todo','practised','confident','reviewed'];
+ const combinationProgress=safeMap(p.combinationProgress,(id,value)=>comboById.has(id)&&validProgressStates.includes(value),150);
+ for(const combo of combos)if(combinationProgress[combo.id])combo.reviewed=combinationProgress[combo.id]==='reviewed';
+ const combinationAssignments={};
+ const usedSlotsByItem=new Map();
+ for(const [key,comboId] of Object.entries(obj(p.combinationAssignments)).slice(0,500)){
+   const match=key.match(/^(k\d+-(?:oneStep|threeStep)-\d+):(\d+)$/);
+   if(!match)continue;
+   const item=IDX[match[1]],index=Number(match[2]),combo=comboById.get(comboId);
+   if(!item||!['oneStep','threeStep'].includes(item.type)||!Number.isInteger(index)||index<0||index>=(item.count||1)||!combo)continue;
+   if(combo.kind!==(item.type==='oneStep'?'one':'three'))continue;
+   const used=usedSlotsByItem.get(item.id)||new Set();
+   if(used.has(combo.id))continue;
+   used.add(combo.id);usedSlotsByItem.set(item.id,used);
+   combinationAssignments[key]=combo.id;
+ }
  const draft=obj(p.combinationDraft);
  const activeRaw=obj(p.dailyActive);
  const activePlan=Array.isArray(activeRaw.plan)?activeRaw.plan.slice(0,10).filter(x=>x&&typeof x==='object').map(x=>({
@@ -79,6 +96,8 @@ function sanitizeProfile(p,{strict=false}={}){
   }),
   videos:safeMap(p.videos,(key,v)=>IDX[key]&&typeof v==='string'&&validVideo.test(v),500),
   savedCombinations:combos,
+  combinationAssignments,
+  combinationProgress,
   practiceProgress:safeMap(p.practiceProgress,(key,v)=>{const m=key.match(/^(.+):(\d+)$/);return m&&IDX[m[1]]&&Number(m[2])<(IDX[m[1]].count||1)&&['todo','practised','confident','reviewed'].includes(v);}),
   combinationDraft:{name:safeString(draft.name,80),kind:['free','one','three'].includes(draft.kind)?draft.kind:'free',ids:Array.isArray(draft.ids)?draft.ids.filter(id=>IDX[id]).slice(0,20):[]},
   dailyHistory:history,
