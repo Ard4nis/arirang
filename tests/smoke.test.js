@@ -96,7 +96,7 @@ test('6. kup includes required kick and takedown categories',async()=>{
   assert.equal((content.match(/class="tool-result"/g)||[]).length,total);
   assert.equal((content.match(/<span class="tag grey">Spark<\/span>/g)||[]).length,kicks);
   assert.equal((content.match(/<span class="tag grey">Nedtagning med træner<\/span>/g)||[]).length,takedowns);
-  assert.match(content,/ikke officielle gradueringskombinationer/i);
+  assert.match(content,/Ingen forslag er officielle gradueringskombinationer/i);
  }
 });
 test('Guided daily session saves completed work without marking skills mastered',async()=>{
