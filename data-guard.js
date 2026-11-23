@@ -38,18 +38,32 @@ function sanitizeProfile(p,{strict=false}={}){
  const kup=Number(p.kup);
  if(strict&&!KUPS.includes(kup))throw new Error('En elevprofil har en ugyldig kup-grad.');
  const grade=KUPS.includes(kup)?kup:6;
- const basics=normalizeProfileOriginal({...p, kup:grade});
  const validStates=[0,1,2];
  const rawCombos=Array.isArray(p.savedCombinations)?p.savedCombinations.slice(0,150):[];
  const combos=rawCombos.map(sanitizeCombination).filter(Boolean);
  const draft=obj(p.combinationDraft);
+ const activeRaw=obj(p.dailyActive);
+ const activePlan=Array.isArray(activeRaw.plan)?activeRaw.plan.slice(0,10).filter(x=>x&&typeof x==='object').map(x=>({
+  type:['theory','technique','forms','combo','repetition','intro'].includes(x.type)?x.type:'technique',
+  title:safeString(x.title,100)||'Øvelse',
+  description:safeString(x.description,260),
+  minutes:Math.max(1,Math.min(30,Number(x.minutes)||3)),
+  ids:Array.isArray(x.ids)?x.ids.filter(id=>IDX[id]).slice(0,16):[],
+  ...(safeString(x.comboId,80)?{comboId:safeString(x.comboId,80)}:{})
+ })):[];
+ const active=activePlan.length&&/^\d{4}-\d{2}-\d{2}$/.test(activeRaw.date||'')?{
+  date:activeRaw.date,
+  minutes:[8,15,25].includes(activeRaw.minutes)?activeRaw.minutes:15,
+  plan:activePlan,
+  current:Math.max(0,Math.min(activePlan.length-1,Number(activeRaw.current)||0)),
+  done:Array.isArray(activeRaw.done)?activeRaw.done.slice(0,activePlan.length).map(v=>v===true):[]
+ }:null;
  const history=Array.isArray(p.dailyHistory)?p.dailyHistory.slice(-90).filter(h=>h&&typeof h==='object'&&typeof h.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(h.date)).map(h=>({
    date:h.date,minutes:Math.max(1,Math.min(60,Number(h.minutes)||15)),
    completed:h.completed===true,completedAt:safeString(h.completedAt,40),
    exercises:Math.max(0,Math.min(20,Number(h.exercises)||0))
  })):[];
  return {
-  ...basics,
   id:safeString(p.id,80)||('p'+Math.random().toString(36).slice(2)),
   name:safeString(p.name,40)||'Elev',
   kup:grade,
@@ -65,11 +79,12 @@ function sanitizeProfile(p,{strict=false}={}){
   }),
   videos:safeMap(p.videos,(key,v)=>IDX[key]&&typeof v==='string'&&validVideo.test(v),500),
   savedCombinations:combos,
+  practiceProgress:safeMap(p.practiceProgress,(key,v)=>{const m=key.match(/^(.+):(\d+)$/);return m&&IDX[m[1]]&&Number(m[2])<(IDX[m[1]].count||1)&&['todo','practised','confident','reviewed'].includes(v);}),
   combinationDraft:{name:safeString(draft.name,80),kind:['free','one','three'].includes(draft.kind)?draft.kind:'free',ids:Array.isArray(draft.ids)?draft.ids.filter(id=>IDX[id]).slice(0,20):[]},
-  dailyHistory:history
+  dailyHistory:history,
+  dailyActive:active
  };
 }
-const normalizeProfileOriginal=normalizeProfile;
 normalizeProfile=function(p){return sanitizeProfile(p);};
 try{
  if(db&&Array.isArray(db.profiles)&&db.profiles.length){
