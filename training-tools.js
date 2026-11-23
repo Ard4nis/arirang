@@ -102,52 +102,63 @@ function plannedCategories(quantity,requirements){
 function safeStepKick(x){
  return x.type==='kicks'&&!/twi[eå]o|flyvende|jijjigki|goolleo|stampe|trampe|knæ|mooreup|doo baldang|seokeo|ieo|dreje kroppen/i.test(x.name+' '+x.desc);
 }
-function chooseStepItems(pool){
- const attack=pool.find(x=>x.name.toLocaleLowerCase('da-DK')==='momtong jireugi');
- const blocks=pool.filter(x=>block(x)&&/momtong|midter sektion/i.test(x.name+' '+x.desc));
- const strikes=pool.filter(x=>x.type==='hands'&&!block(x)&&/jireugi/i.test(x.name)&&!/hals|finger|knæ/i.test(x.desc));
- const kicks=pool.filter(safeStepKick);
- return {attack,blocks,strikes,kicks};
+function chooseStepItems(){
+ // Skridtkamp for a kup may use techniques taught at earlier kup.
+ // Treat "Kun mit kup" as the focus of new material, not as a ban
+ // on foundation blocks/punches previously mastered.
+ const foundation=getTech('upto');
+ const byName=n=>foundation.find(x=>x.name.toLocaleLowerCase('da-DK')===n);
+ const attackDefs=[
+  {attack:byName('momtong jireugi'),defence:foundation.filter(x=>block(x)&&(/momtong/i.test(x.name)||/midter sektion/i.test(x.desc)))},
+  {attack:byName('eolgul jireugi'),defence:foundation.filter(x=>block(x)&&(/eolgul|olgul/i.test(x.name)||/høj sektion/i.test(x.desc)))},
+  {attack:byName('arae jireugi'),defence:foundation.filter(x=>block(x)&&(/arae/i.test(x.name)||/lav sektion/i.test(x.desc)))}
+ ].filter(pair=>pair.attack&&pair.defence.length);
+ const punches=foundation.filter(x=>x.type==='hands'&&!block(x)&&/^(momtong jireugi|eolgul jireugi|bandae jireugi|baro jireugi|arae jireugi)$/i.test(x.name));
+ const kicks=foundation.filter(safeStepKick);
+ return {attackDefs,punches,kicks};
 }
 function generateStep(){
  const requirement=stepRequirement();
  if(!requirement)return [];
  const quantity=state.fullSet?Math.min(30,requirement.count):state.amount;
- const available=getTech(state.scope);
- const {attack,blocks,strikes,kicks}=chooseStepItems(available);
- if(!attack||!blocks.length||(!strikes.length&&!kicks.length)){
-  state.notice='Mangler passende angrebs-, forsvars- eller modangrebsteknikker på det valgte niveau. Vælg "Mit kup + tidligere" og prøv igen.';
+ const {attackDefs,punches,kicks}=chooseStepItems();
+ if(!attackDefs.length||!punches.length||!kicks.length){
+  state.notice='Der mangler grundlæggende angrebs-, forsvars- eller modangrebsteknikker i pensumdata.';
   return [];
  }
- const requirements=requirementCounts(requirement);
- const categories=plannedCategories(quantity,requirements);
+ const categories=plannedCategories(quantity,requirementCounts(requirement));
  const results=[],used=new Set;
  for(let n=0;n<quantity;n++){
   const cat=categories[n],isThree=state.kind==='threeStep';
-  let counter=null;
-  if(cat==='kick'){counter=rnd(kicks);}
-  else{counter=rnd(strikes);}
-  if(!counter){counter=rnd([...strikes,...kicks]);}
-  if(!counter)continue;
-  const defences=isThree?Array.from({length:3},()=>rnd(blocks)):[rnd(blocks)];
-  const stages=[];
-  defences.forEach((defence,i)=>{
-   stages.push({role:isThree?'Angreb '+(i+1)+' (skridt '+(i+1)+')':'Angreb (ét skridt)',id:attack.id});
-   stages.push({role:isThree?'Forsvar '+(i+1):'Forsvar',id:defence.id});
-  });
-  stages.push({role:cat==='kick'?'Modangreb med spark':'Modangreb',id:counter.id});
-  if(cat==='takedown')stages.push({role:'Nedtagning',text:'Vælg en nedtagning, som instruktøren har godkendt. Der genereres ikke tekniske instruktioner til nedtagninger.'});
-  const ids=stages.filter(x=>x.id).map(x=>x.id);
-  const key=cat+'|'+ids.join('|');
-  if(used.has(key)){
-    const alternative=blocks[(n+results.length)%blocks.length];
-    if(alternative&&stages.length>1){
-      const d=stages.find(x=>x.role.startsWith('Forsvar'));
-      if(d)d.id=alternative.id;
-    }
+  let stages=[],signature='',counter,attackDef;
+  for(let tryCount=0;tryCount<40;tryCount++){
+   attackDef=rnd(attackDefs);
+   counter=cat==='kick'?rnd(kicks):rnd(punches);
+   if(!counter)continue;
+   const defence=isThree
+     ?Array.from({length:3},()=>rnd(attackDef.defence))
+     :[rnd(attackDef.defence)];
+   stages=[];
+   defence.forEach((def,i)=>{
+    stages.push({role:isThree?'Angreb '+(i+1)+' (skridt '+(i+1)+')':'Angreb (ét skridt)',id:attackDef.attack.id});
+    stages.push({role:isThree?'Forsvar '+(i+1):'Forsvar',id:def.id});
+   });
+   stages.push({role:cat==='kick'?'Modangreb med spark':'Modangreb',id:counter.id});
+   if(cat==='takedown'){
+    stages.push({role:'Nedtagning',text:'Vælges med instruktøren. Udfør ikke nedtagningen på en partner uden trænerens instruktion.'});
+   }
+   signature=cat+'|'+stages.map(x=>x.id||x.role).join('|');
+   if(!used.has(signature))break;
   }
-  used.add(key);
-  results.push({name:(isThree?'Tre-skridtskamp':'Et-skridtskamp')+' · forslag '+(n+1),kind:isThree?'three':'one',ids:stages.filter(x=>x.id).map(x=>x.id),stages,category:cat,reviewed:false});
+  if(!stages.length)continue;
+  const repeated=used.has(signature);
+  used.add(signature);
+  results.push({
+   name:(isThree?'Tre-skridtskamp':'Et-skridtskamp')+' · forslag '+(n+1)+(repeated?' (gentagelse)':''),
+   kind:isThree?'three':'one',
+   ids:stages.filter(x=>x.id).map(x=>x.id),
+   stages,category:cat,reviewed:false
+  });
  }
  return results;
 }
@@ -170,7 +181,7 @@ function stepGeneratorPage(){
  '<p class="small muted">'+H(exp)+'</p>'+
  (requirement?'<label class="check"><input type="checkbox" data-tool-full '+(state.fullSet?'checked':'')+'> Generér et helt sæt efter kup-kravene ('+cnt.total+' forslag)</label>':'')+
  '<div class="actionrow">'+button('🎲 Generér '+amount+' forslag','data-tool-generate '+(!requirement?'disabled':''),'')+button('🧩 Byg selv','data-page="combinations"')+'</div>'+
- '<div class="note soft"><strong>Vigtigt:</strong> Disse er forslag til teknikøvelse i luften. Klubpensummet angiver antal, men ikke præcise sekvenser. Angreb og forsvar skal passe sammen efter trænerens instruktion. Træn ikke nedtagninger, låse eller partnerkontakt uden kvalificeret opsyn. Ingen forslag er officielle gradueringskombinationer.</div></div>'+
+ '<div class="note soft"><strong>Vigtigt:</strong> Disse er forslag til teknikøvelse i luften. Klubpensummet angiver antal, men ikke præcise sekvenser. Generatoren bruger også grundteknikker fra lavere kup, selv når du vælger Kun mit kup. Angreb og forsvar er mål-matchede øveskitser, men afstand og trin skal stadig vurderes af træneren. Træn ikke nedtagninger, låse eller partnerkontakt uden kvalificeret opsyn. Ingen forslag er officielle gradueringskombinationer.</div></div>'+
  alertBox()+(state.results.length?'<div class="panel"><h3>Træningsopgaver ('+state.results.length+')</h3>'+
  '<p class="small muted">Rækkefølgen er en øveskitse, som træneren skal kontrollere. Tjek både afstand og teknik, før den bruges med en partner.</p>'+
  state.results.map((c,n)=>'<div class="tool-result"><strong>'+H(c.name)+'</strong> '+pillStepCategory(c.category)+stepInstructions(c)+button('Gem til mine kombinationer','data-tool-save-step="'+n+'"')+'</div>').join('')+'</div>':'');
