@@ -7,7 +7,7 @@ const root=path.resolve(__dirname,'..');
 const source=name=>fs.readFileSync(path.join(root,name),'utf8');
 const index=source('index.html');
 const main=(index.match(/<script>([\s\S]*?)<\/script>/)||[])[1];
-const libraries=['video-catalog.js','voice-picker.js','tts-reliability.js','data-guard.js','progress-tools.js','training-tools.js','daily-training.js','readiness.js'];
+const libraries=['video-catalog.js','voice-picker.js','tts-reliability.js','data-guard.js','progress-tools.js','training-tools.js','daily-training.js','readiness.js','combination-links.js'];
 function startApp(voiceList=[
  {name:'Dansk',voiceURI:'da1',lang:'da-DK',default:true},
  {name:'Korean',voiceURI:'ko1',lang:'ko-KR',default:false}
@@ -126,4 +126,88 @@ test('Malformed import rejects invalid kup without changing existing profile',as
  await app.change({import:''},null,{files:[{size:300,text:async()=>JSON.stringify(bogus)}]});
  assert.equal(app.me().id,original);
  assert.match(app.alerts.at(-1),/afvist/i);
+});
+
+
+test('A named sparring combination links to a graduation slot and keeps its status when moved',async()=>{
+ const app=startApp();
+ const p=app.me();
+ p.savedCombinations=[
+  {id:'one-a',name:'Mit et-skridtsforsvar',kind:'one',ids:['k6-stances-0','k6-hands-0'],reviewed:false},
+  {id:'one-b',name:'Mit andet forsvar',kind:'one',ids:['k6-stances-0','k6-hands-1'],reviewed:false},
+  {id:'three-a',name:'Mit tre-skridtsforsvar',kind:'three',ids:['k6-stances-0','k6-hands-0'],reviewed:false}
+ ];
+ const slot='k6-oneStep-0:0',next='k6-oneStep-0:1';
+ p.practiceProgress={[slot]:'confident'};
+ p.checks[slot]=true;
+ app.navigate('readiness');
+ assert.match(app.html(),/data-link-combo="k6-oneStep-0:0"/);
+ assert.match(app.html(),/Kan selv: <b>1\/10<\/b>/);
+ await app.change({linkCombo:slot},'one-a');
+ assert.equal(p.combinationAssignments[slot],'one-a');
+ assert.equal(p.practiceProgress[slot],'confident','old unnamed progress must remain intact');
+ assert.match(app.html(),/Kan selv: <b>0\/10<\/b>/,'old generic mark must not be assigned to the named combo');
+ await app.change({linkedProgress:slot},'practised');
+ assert.equal(p.combinationProgress['one-a'],'practised');
+ app.navigate('combinations');
+ assert.match(app.html(),/Mit et-skridtsforsvar/);
+ assert.match(app.html(),/6\. kup · et-skridtskamp 1/);
+ assert.match(app.html(),/data-combo-global-progress="one-a"/);
+ await app.change({comboGlobalProgress:'one-a'},'confident');
+ assert.equal(p.combinationProgress['one-a'],'confident');
+ app.navigate('readiness');
+ assert.match(app.html(),/Kan selv: <b>1\/10<\/b>/);
+ await app.change({linkCombo:next},'one-a');
+ assert.equal(p.combinationAssignments[next],undefined,'a combo may not occupy two slots of the same requirement');
+ await app.change({linkCombo:slot},'');
+ await app.change({linkCombo:next},'one-a');
+ assert.equal(p.combinationAssignments[next],'one-a');
+ assert.equal(p.combinationProgress['one-a'],'confident','status follows the named combo');
+ assert.match(app.html(),/Kan selv: <b>2\/10<\/b>/,'old unnamed status is restored after unlinking');
+ await app.change({linkCombo:'k6-threeStep-0:0'},'one-a');
+ assert.equal(p.combinationAssignments['k6-threeStep-0:0'],undefined,'one- and three-step kinds are distinct');
+ app.navigate('combinations');
+ await app.click({toolReview:'one-a'});
+ assert.equal(p.combinationProgress['one-a'],'reviewed');
+ assert.equal(p.savedCombinations.find(c=>c.id==='one-a').reviewed,true);
+ await app.click({toolDelete:'one-a'});
+ assert.equal(p.combinationAssignments[next],undefined);
+ assert.equal(p.combinationProgress['one-a'],undefined);
+ assert.ok(!p.savedCombinations.some(c=>c.id==='one-a'));
+});
+
+test('Import preserves valid combination links while filtering duplicate and mismatched assignments',async()=>{
+ const app=startApp();
+ const raw={
+   active:'p-imported',
+   profiles:[{
+    id:'p-imported',name:'Importeret elev',kup:6,
+    savedCombinations:[
+     {id:'one-a',name:'Et-skridtskombination',kind:'one',ids:['k6-hands-0'],reviewed:false},
+     {id:'three-a',name:'Tre-skridtskombination',kind:'three',ids:['k6-hands-0'],reviewed:false}
+    ],
+    combinationAssignments:{
+      'k6-oneStep-0:0':'one-a',
+      'k6-oneStep-0:1':'one-a',
+      'k6-oneStep-0:2':'three-a',
+      'k6-threeStep-0:0':'three-a',
+      'k6-oneStep-0:99':'one-a'
+    },
+    combinationProgress:{'one-a':'confident','three-a':'reviewed','missing':'reviewed'}
+   }]
+ };
+ await app.change({import:''},null,{files:[{size:1200,text:async()=>JSON.stringify(raw)}]});
+ const p=app.me();
+ assert.equal(p.id,'p-imported');
+ assert.equal(p.combinationAssignments['k6-oneStep-0:0'],'one-a');
+ assert.equal(p.combinationAssignments['k6-oneStep-0:1'],undefined);
+ assert.equal(p.combinationAssignments['k6-oneStep-0:2'],undefined);
+ assert.equal(p.combinationAssignments['k6-threeStep-0:0'],'three-a');
+ assert.equal(p.combinationAssignments['k6-oneStep-0:99'],undefined);
+ assert.equal(p.combinationProgress['one-a'],'confident');
+ assert.equal(p.combinationProgress['three-a'],'reviewed');
+ assert.equal(p.combinationProgress.missing,undefined);
+ assert.equal(p.savedCombinations.find(c=>c.id==='three-a').reviewed,true);
+ app.navigate('readiness');
+ assert.match(app.html(),/Navngivne kombinationer: 1\/10/);
 });
