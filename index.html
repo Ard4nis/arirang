@@ -56,43 +56,123 @@ const HANGUL_TERMS={
 };
 let speechRate=.85;
 try{const r=Number(localStorage.getItem('arirang-tts-rate-v1'));if([.7,.85,1].includes(r))speechRate=r;}catch{}
-function voicesFor(prefix){
-  if(!TTS_AVAILABLE)return null;
-  return window.speechSynthesis.getVoices().find(v=>v.lang.toLowerCase().startsWith(prefix.toLowerCase()))||null;
+function availableSpeechVoices(){
+  if(!TTS_AVAILABLE)return [];
+  try{return Array.from(window.speechSynthesis.getVoices()||[]);}catch{return [];}
 }
+function voicesFor(prefix){
+  return availableSpeechVoices().find(v=>String(v.lang||'').toLowerCase().startsWith(prefix.toLowerCase()))||null;
+}
+let activeSpeechRequest=0;
+let speechStartTimer=null;
 function speechStatus(message){
   const el=document.getElementById('ttsStatus');
   if(!el)return;
   el.textContent=message;
   el.classList.toggle('show',Boolean(message));
 }
+function clearSpeechTimer(){
+  if(speechStartTimer!==null){clearTimeout(speechStartTimer);speechStartTimer=null;}
+}
 function cancelSpeech(){
-  if(TTS_AVAILABLE)window.speechSynthesis.cancel();
+  activeSpeechRequest++;
+  clearSpeechTimer();
+  if(TTS_AVAILABLE){
+    try{window.speechSynthesis.cancel();}catch{}
+  }
   speechStatus('');
 }
 function playableTheory(x){return x&&x.type==='theory'&&Boolean(String(x.pron||'').trim()||HANGUL_TERMS[x.name]);}
 function speakItem(item,kind='ko'){
-  if(!item||!TTS_AVAILABLE){speechStatus('Oplæsning understøttes ikke af denne browser.');return;}
-  window.speechSynthesis.cancel();
+  if(!item||!TTS_AVAILABLE){
+    speechStatus('Denne browser understøtter ikke oplæsning. Prøv en anden browser eller enhed.');
+    return;
+  }
+  const voices=availableSpeechVoices();
+  if(!voices.length){
+    speechStatus('Ingen oplæsningsstemmer fundet. Firefox kan have brug for lidt tid til at indlæse stemmerne. Prøv igen, eller kontrollér at enheden har TTS-stemmer installeret.');
+    return;
+  }
   const korean=kind==='ko';
   const known=HANGUL_TERMS[item.name];
-  const nativeVoice=korean?voicesFor('ko'):null;
-  const useNative=korean&&Boolean(known&&nativeVoice);
-  const textToRead=korean?(useNative?known:(item.pron||item.name)):item.desc;
-  if(!textToRead){speechStatus('Der er ingen tekst at læse op.');return;}
-  const lang=useNative?'ko-KR':'da-DK';
-  const utterance=new SpeechSynthesisUtterance(String(textToRead));
-  utterance.lang=lang;
-  utterance.rate=speechRate;
-  utterance.pitch=1;
-  utterance.voice=useNative?nativeVoice:(voicesFor('da')||null);
-  let message;
-  if(!korean)message='Læser den danske betydning op.';
-  else if(useNative)message='Afspiller koreansk TTS. Tjek gerne udtalen med instruktøren.';
-  else message='Vejledende oplæsning af Arirangs danske lydskrift. En koreansk stemme/korrekt Hangul-tekst er ikke tilgængelig for dette ord.';
-  speechStatus(message);
-  utterance.onerror=()=>speechStatus('Oplæsningen kunne ikke afspilles. Kontrollér at enheden har en tale-stemme installeret.');
-  try{window.speechSynthesis.speak(utterance);}catch{speechStatus('Oplæsning er ikke tilgængelig på denne enhed.');}
+  const nativeVoice=korean&&known?(voicesFor('ko')):null;
+  const useNative=Boolean(korean&&known&&nativeVoice);
+  const fallbackVoice=voicesFor('da');
+  const chosenVoice=useNative?nativeVoice:fallbackVoice;
+  if(!chosenVoice){
+    speechStatus(korean?'Der mangler en koreansk eller dansk stemme i browseren. Installér en af dem på enheden for at høre ordene.':'Der mangler en dansk TTS-stemme. Installér en dansk stemme i systemet eller prøv en anden browser.');
+    return;
+  }
+  const toRead=korean?(useNative?known:(item.pron||item.name)):item.desc;
+  if(!toRead){
+    speechStatus('Der er ingen tekst at læse op.');
+    return;
+  }
+  const synth=window.speechSynthesis;
+  const request=++activeSpeechRequest;
+  clearSpeechTimer();
+  try{
+    if(synth.speaking||synth.pending)synth.cancel();
+    if(synth.paused)synth.resume();
+    const utterance=new SpeechSynthesisUtterance(String(toRead));
+    utterance.lang=chosenVoice.lang||(useNative?'ko-KR':'da-DK');
+    utterance.voice=chosenVoice;
+    utterance.rate=speechRate;
+    utterance.pitch=1;
+    utterance.volume=1;
+    let started=false;
+    const description=!korean?'dansk betydning':useNative?'koreansk udtale':'vejledende dansk lydskrift (ikke koreansk originaludtale)';
+    utterance.onstart=()=>{
+      if(request!==activeSpeechRequest)return;
+      started=true;
+      clearSpeechTimer();
+      speechStatus('Afspiller '+description+'.');
+    };
+    utterance.onend=()=>{
+      if(request!==activeSpeechRequest)return;
+      clearSpeechTimer();
+      speechStatus('');
+    };
+    utterance.onerror=(event)=>{
+      if(request!==activeSpeechRequest)return;
+      clearSpeechTimer();
+      const error=event?.error||'ukendt fejl';
+      const explanation={
+        'not-allowed':'Firefox har blokeret oplæsningen. Tryk på afspilningsknappen igen.',
+        'voice-unavailable':'Den valgte stemme kan ikke bruges. Tjek installerede sprogstemmer.',
+        'language-unavailable':'En passende sprogstemme er ikke installeret.',
+        'synthesis-unavailable':'Tale-motoren er ikke tilgængelig på denne enhed.',
+        'synthesis-failed':'Tale-motoren kunne ikke afspille ordet.',
+        'audio-hardware':'Der er et problem med enhedens lydudgang.',
+        'audio-busy':'Lydudgangen er optaget. Prøv igen.',
+        'network':'Tale-motoren kunne ikke hente den nødvendige stemme.',
+        'interrupted':'Oplæsningen blev afbrudt. Prøv igen.'
+      }[error]||'Oplæsningen fejlede ('+error+'). Kontrollér browserens stemmer og prøv igen.';
+      speechStatus(explanation);
+    };
+    speechStatus('Starter oplæsning af '+description+' …');
+    synth.speak(utterance);
+    speechStartTimer=setTimeout(()=>{
+      if(request!==activeSpeechRequest||started)return;
+      try{synth.cancel();}catch{}
+      speechStatus('Firefox begyndte ikke at afspille lyden. Kontrollér installerede TTS-stemmer, og prøv igen. Du kan også teste med dansk tale nedenfor.');
+    },5500);
+  }catch(error){
+    if(request!==activeSpeechRequest)return;
+    clearSpeechTimer();
+    speechStatus('Oplæsningen kunne ikke startes i denne browser. Prøv en anden stemme eller browser.');
+  }
+}
+if(TTS_AVAILABLE){
+  // In Firefox the first getVoices() call can start asynchronous voice loading.
+  availableSpeechVoices();
+  try{
+    window.speechSynthesis.addEventListener('voiceschanged',()=>{
+      if(availableSpeechVoices().length&&document.getElementById('ttsStatus')?.textContent?.includes('Ingen oplæsningsstemmer')){
+        speechStatus('Stemmerne er nu klar. Tryk på Hør ordet igen.');
+      }
+    });
+  }catch{}
 }
 function ttsButtons(item,{meaning=false}={}){
   if(!item||item.type!=='theory')return '';
@@ -103,7 +183,7 @@ function ttsButtons(item,{meaning=false}={}){
 }
 function ttsSettings(){return `<div class="tts-config"><label for="ttsRate">Oplæsningshastighed:</label><select id="ttsRate" data-tts-rate>
   ${[[.7,'Langsom'],[.85,'Normal'],[1,'Hurtig']].map(([value,label])=>`<option value="${value}" ${value===speechRate?'selected':''}>${label}</option>`).join('')}
-  </select><button class="btn small ghost" data-stop-tts ${!TTS_AVAILABLE?'disabled':''}>■ Stop lyd</button></div>`;}
+  </select><button class="btn small secondary" data-test-tts ${!TTS_AVAILABLE?'disabled':''}>🔊 Test dansk lyd</button><button class="btn small ghost" data-stop-tts ${!TTS_AVAILABLE?'disabled':''}>■ Stop lyd</button><span class="small muted" aria-live="polite">Tilgængelige stemmer: ${availableSpeechVoices().length}. ${TTS_AVAILABLE?'Hvis lydtesten fejler, mangler Firefox muligvis en systemstemme.':'Denne browser understøtter ikke oplæsning.'}</span></div>`;}
 
 function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function newProfile(name='Min træning'){return {id:'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),name,kup:6,mode:'grade',includeGrade:true,extraIds:[],mastery:{},known:{},checks:{},videos:{}};}
@@ -170,7 +250,7 @@ function startQuiz(mode='standard'){
     }),index:0,selected:-1,score:0
   };
   render();
-  if(listen)speakItem(IDX[ui.quiz.questions[0].id],'ko');
+  // Manual play is more reliable across Firefox and mobile browsers.
 }
 function quizPage(){
   const theory=quizSource();
@@ -182,7 +262,7 @@ function quizPage(){
     if(z.index>=z.questions.length)return `<div class="panel"><h2>🏆 ${z.score}/${z.questions.length} korrekte!</h2><p>${z.score===z.questions.length?'Flot – alle rigtige! 🌟':'God træning! Prøv igen, og øv de svære ord lidt ekstra.'}</p><button class="btn" data-start-quiz="${z.mode}">Prøv igen</button><button class="btn secondary" data-exit-quiz>Tilbage til flashcards</button></div>`;
     const q=z.questions[z.index], listening=z.mode==='listening';
     return `<div class="panel"><div class="rowbetween"><h2>${listening?'🎧 Lyttequiz':'Teoriprøve'} · ${z.index+1}/${z.questions.length}</h2>${pill(z.score+' rigtige','ok')}</div>
-      ${listening?`<h3>Hvilken betydning hører du?</h3><p class="muted small">Kig ikke på ordet – lyt, og vælg det rigtige svar.</p><div class="tts-actions"><button class="btn" data-speak-item="${q.id}" data-speak-type="ko">🔊 Afspil ordet igen</button></div>`:
+      ${listening?`<h3>Hvilken betydning hører du?</h3><p class="muted small">Tryk først på Afspil ordet. Lyt og vælg derefter den rigtige betydning.</p><div class="tts-actions"><button class="btn" data-speak-item="${q.id}" data-speak-type="ko">🔊 Afspil ordet igen</button></div>`:
       `<h3>Hvad betyder ${cleanText(q.q)}?</h3>${ttsButtons(IDX[q.id])}`}
       ${q.choices.map((ans,n)=>`<button class="quiz-choice ${z.selected>=0&&ans===q.correct?'good':''} ${z.selected===n&&ans!==q.correct?'bad':''}" data-quiz-choice="${n}" ${z.selected>=0?'disabled':''}>${cleanText(ans)}</button>`).join('')}
       ${z.selected>=0?`<p><strong>${listening?'Ordet':'Rigtigt svar'}:</strong> ${listening?cleanText(q.q)+' – ':''}${cleanText(q.correct)}</p><button class="btn" data-quiz-next>${z.index===z.questions.length-1?'Se resultat':'Næste →'}</button>`:''}
@@ -199,6 +279,7 @@ function render(){hero();menu();const views={home:homePage,curriculum:curriculum
 function parseYoutube(raw){try{const u=new URL(String(raw).trim());let id=null;if(['youtube.com','www.youtube.com','m.youtube.com','youtube-nocookie.com','www.youtube-nocookie.com'].includes(u.hostname)){id=u.searchParams.get('v')||u.pathname.match(/^\/(?:embed|shorts|live)\/([\w-]{11})/)?.[1];}else if(['youtu.be','www.youtu.be'].includes(u.hostname)){id=u.pathname.slice(1).split('/')[0];}return /^[\w-]{11}$/.test(id||'')?id:null;}catch{return null;}}
 function applyExample(){const p=me();p.kup=6;p.includeGrade=true;p.extraIds=[9,8,7].map(k=>IDX[`k${k}-forms-0`]?.id).filter(Boolean);p.mode='custom';save();navigate('builder');}
 function clickHandler(e){const b=e.target.closest('button');if(!b)return;const d=b.dataset,p=me();
+ if(d.testTts!==undefined){speakItem({name:'Lydtest',desc:'Dette er en test af dansk oplæsning.'},'da');return;}
  if(d.speakItem){speakItem(IDX[d.speakItem],d.speakType||'ko');return;}
  if(d.stopTts!==undefined){cancelSpeech();return;}
  if(d.page){navigate(d.page);return;}
@@ -221,7 +302,7 @@ function clickHandler(e){const b=e.target.closest('button');if(!b)return;const d
  if(d.startQuiz!==undefined){startQuiz(d.startQuiz||'standard');return;}
  if(d.exitQuiz!==undefined){cancelSpeech();ui.quiz=null;render();return;}
  if(d.quizChoice!==undefined&&ui.quiz&&ui.quiz.selected<0){const z=ui.quiz,q=z.questions[z.index];z.selected=Number(d.quizChoice);if(q.choices[z.selected]===q.correct)z.score++;render();return;}
- if(d.quizNext!==undefined&&ui.quiz){cancelSpeech();ui.quiz.index++;ui.quiz.selected=-1;render();if(ui.quiz.index<ui.quiz.questions.length&&ui.quiz.mode==='listening')speakItem(IDX[ui.quiz.questions[ui.quiz.index].id],'ko');return;}
+ if(d.quizNext!==undefined&&ui.quiz){cancelSpeech();ui.quiz.index++;ui.quiz.selected=-1;render();return;}
  if(d.newProfile!==undefined){const input=document.getElementById('newProfileInput');const name=input?.value.trim();if(!name){alert('Skriv et navn eller kaldenavn.');return;}const q=newProfile(name.slice(0,40));db.profiles.push(q);db.active=q.id;save();navigate('home');return;}
  if(d.rename!==undefined){const name=document.getElementById('renameInput')?.value.trim();if(!name)return;p.name=name.slice(0,40);save();render();return;}
  if(d.profile){db.active=d.profile;save();navigate('home');return;}
