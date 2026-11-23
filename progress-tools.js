@@ -14,6 +14,7 @@ function practiceStatus(p,key){
  return p.checks?.[key]?'practised':'todo';
 }
 practiceHTML=function(item){
+ if((item.type==='oneStep'||item.type==='threeStep')&&window.arirangCombinationLinks)return window.arirangCombinationLinks.renderPractice(item);
  const p=me(),n=item.count||1;
  const records=Array.from({length:n},(_,i)=>{
    const key=item.id+':'+i;
