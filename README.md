@@ -75,3 +75,16 @@ node --test tests/*.test.js
 GitHub Actions: [Validate portal](https://github.com/Ard4nis/arirang/actions/workflows/validate.yml).
 
 Ingen kontooprettelse, tracker eller backend er nødvendig. Alle profiler og træningsdata ligger i lokal browserlagring og bør sikkerhedskopieres.
+
+
+### Navngivne kombinationer i gradueringsoversigten
+
+Kombinationsbyggeren og gradueringsoversigten er nu forbundet:
+
+1. Under **Træningsværktøjer → Kombinationsbygger** kan en elev gemme en kombination som **Et-skridtskamp** eller **Tre-skridtskamp**. Frie teknikøvelser tæller ikke som skridtkampe.
+2. En gemt kombination kan tilknyttes direkte fra byggeren via **Tilknyt til graduering**. Den placeres på første ledige plads i elevens aktuelle kup-krav. Alternativt vælges den i dropdownmenuen under **Træningsværktøjer → Gradueringsoversigt**.
+3. Status (Ikke startet / Øvet / Kan selv / Gennemgået med træner) gemmes **på den navngivne kombination** og vises ens begge steder. Flytning til en anden plads ændrer ikke status. Den samme kombination må ikke udfylde to pladser i samme krav.
+4. Tidligere, ikke-navngivne statusmarkeringer bevares separat. De overføres **ikke automatisk** til en ny navngiven kombination; fjerner man forbindelsen igen, kan den gamle status stadig ses.
+5. Ved sletning af en gemt kombination fjernes dens gradueringskoblinger. Koblinger og status er med i JSON-sikkerhedskopier og valideres ved import.
+
+Markeringen **Gennemgået med træner** er elevens egen registrering og ikke en officiel digital godkendelse. Træneren skal fortsat gennemgå kampsekvenser og nedtagninger.
