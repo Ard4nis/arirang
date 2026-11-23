@@ -64,7 +64,7 @@ function pageDaily(){
     '<div class="panel"><h3>Seneste 7 dage</h3><p>'+h.length+' gennemførte træningspas.</p></div>';
  }
  const step=a.plan[Math.min(a.current,a.plan.length-1)], completed=a.done.filter(Boolean).length;
- if(a.done.length===a.plan.length&&a.done.every(Boolean)){
+ if(a.plan.every((_,i)=>a.done[i]===true)){
    return '<div class="panel daily-finish"><h2>🎉 Flot træning!</h2><p>Du har gennemført alle '+a.plan.length+' dele af dagens '+a.minutes+' minutters træningspas.</p><button class="btn" data-daily-finish>Gem dagens træning</button></div>';
  }
  return '<section class="section-head"><h2>🌟 Dagens træning</h2><p class="lead">'+a.minutes+' minutter · '+completed+' af '+a.plan.length+' aktiviteter gennemført</p></section>'+
