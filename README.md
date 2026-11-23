@@ -33,3 +33,12 @@ TTS er afhængig af browserens og enhedens stemmer; koreansk udtale bør kontrol
 ## Rettigheder
 
 Arirangs elevmappe (02.06.2024) angiver kopieringsrestriktioner. Indhent klubbens tilladelse før offentlig distribution af bearbejdet pensummateriale. Trænerens instruktion har altid forrang.
+
+## Træningsværktøjer (november 2026)
+
+- **Teknikbibliotek:** Søg i stande, blokeringer, håndteknikker og spark. Filtrér på eget kup, eget kup inkl. tidligere eller alle kup.
+- **Kombinationsbygger:** Sammensæt rækkefølger manuelt og gem dem pr. elevprofil. Markér efterfølgende kombinationer som gennemgået med træneren.
+- **Træningsgenerator:** Foreslår tilfældige teknikøvelser eller vælger fra egne gemte kombinationer. Automatisk genererede forslag er **ikke** godkendte kamp- eller gradueringskombinationer.
+- **TTS-stemmevælger:** Koreansk og dansk stemme kan vælges hver for sig, når browseren/enheden stiller dem til rådighed. Valgene gemmes lokalt. På Firefox kan tilgængelige stemmer afhænge af OS og stemmepakker.
+
+Systemet gemmer fortsat elevprofiler og fremskridt lokalt i browseren. Kombinationsdata følger elevprofilen ved eksport/import.
