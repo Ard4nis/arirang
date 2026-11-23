@@ -42,3 +42,7 @@ Arirangs elevmappe (02.06.2024) angiver kopieringsrestriktioner. Indhent klubben
 - **TTS-stemmevælger:** Koreansk og dansk stemme kan vælges hver for sig, når browseren/enheden stiller dem til rådighed. Valgene gemmes lokalt. På Firefox kan tilgængelige stemmer afhænge af OS og stemmepakker.
 
 Systemet gemmer fortsat elevprofiler og fremskridt lokalt i browseren. Kombinationsdata følger elevprofilen ved eksport/import.
+
+### Et- og tre-skridtskamp i træningsgeneratoren
+
+Generatoren kan lave enkelte forslag eller et komplet øvesæt ud fra det valgte kup. For 6. kup genereres henholdsvis 10 et-skridtsforslag (5 med spark, 3 med nedtagning) og 8 tre-skridtsforslag (4 med spark, 2 med nedtagning). Enkeltforslag indeholder et foreslået angreb, forsvar og modangreb; tre-skridtsforslag viser tre angrebs-/forsvarstrin. Nedtagninger får **ingen automatisk teknikvejledning** — de skal vælges og instrueres af træneren. Gemte forslag er uofficielle og kan markeres som gennemgået med træneren. Forslagene er kun til teknikøvelse uden partnerkontakt, indtil træneren har godkendt udførelsen.
